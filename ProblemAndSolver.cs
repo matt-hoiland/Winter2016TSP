@@ -13,7 +13,7 @@ namespace TSP
     class ProblemAndSolver
     {
 
-        private class TSPSolution
+        internal class TSPSolution
         {
             /// <summary>
             /// we use the representation [cityB,cityA,cityC] 
@@ -97,6 +97,10 @@ namespace TSP
         /// best solution so far. 
         /// </summary>
         private TSPSolution bssf; 
+        public TSPSolution BSSF
+        {
+            get { return bssf; } set { bssf = value; }
+        }
 
         /// <summary>
         /// how to color various things. 
@@ -686,15 +690,8 @@ namespace TSP
 
         public string[] fancySolveProblem()
         {
-            string[] results = new string[3];
-
-            // TODO: Add your implementation for your advanced solver here.
-
-            results[COST] = "not implemented";    // load results into array here, replacing these dummy values
-            results[TIME] = "-1";
-            results[COUNT] = "-1";
-
-            return results;
+            greedySolveProblem();
+            return GeneticAlgorithm.Solve(this);
         }
         #endregion
     }
