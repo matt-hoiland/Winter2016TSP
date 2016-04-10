@@ -691,7 +691,7 @@ namespace TSP
         public string[] fancySolveProblem()
         {
             greedySolveProblem();
-            return GeneticAlgorithm.Solve(this);
+            return new GeneticAlgorithm().Solve(this);
         }
         #endregion
     }

@@ -11,226 +11,50 @@ namespace TSP
 
     class GeneticAlgorithm
     {
-        private static ProblemAndSolver parent;
+        public int PopulationSize { get; set; }
+        public int TournamentSize { get; set; }
+        public double MutationRate { get; set; }
+        public int GreedyVariance { get; set; }
+        public double GreedyPreferenceRate { get; set; }
+        public int MaxGenerations { get; set; }
 
-        private static Random random = new Random();
-
-        private class Sequence
+        public GeneticAlgorithm()
         {
-            private int[] array;
-
-            private double score;
-
-            public int this[int i]
-            {
-                get
-                {
-                    return array[i];
-                }
-                set
-                {
-                    array[i] = value;
-                }
-            }
-
-            public int Length
-            {
-                get
-                {
-                    return array.Length;
-                }
-            }
-
-            public Sequence(int[] thing)
-            {
-                array = thing;
-                score = double.PositiveInfinity;
-            }
-
-            public Sequence(Sequence parent)
-            {
-                array = new int[parent.array.Length];
-                for (int i = 0; i < array.Length; i++)
-                {
-                    array[i] = parent[i];
-                }
-                score = rescore();
-            }
-
-            public Sequence(ProblemAndSolver.TSPSolution best)
-            {
-                var list = best.Route;
-                array = new int[list.Count];
-                City[] cities = parent.GetCities();
-                int j = 0;
-                foreach (City c in list)
-                {
-                    for (int i = 0; i < cities.Length; i++)
-                    {
-                        if (cities[i].Equals(c))
-                        {
-                            array[j] = i;
-                        }
-                    }
-                    j++;
-                }
-                score = rescore();
-            }
-
-            public double Score
-            {
-                get
-                {
-                    if (double.IsPositiveInfinity(score))
-                    {
-                        score = rescore();
-                    }
-                    return score;
-                }
-            }
-
-            private double rescore()
-            {
-                return ToRoute().costOfRoute();
-            }
-
-            public int IndexOf(int city)
-            {
-                for (int i = 0; i < Length; i++)
-                {
-                    if (array[i] == city) { return i; }
-                }
-                return -1;
-            }
-
-            public ProblemAndSolver.TSPSolution ToRoute()
-            {
-                ArrayList list = new ArrayList();
-                foreach (int i in array)
-                {
-                    list.Add(parent.GetCities()[i]);
-                }
-                return new ProblemAndSolver.TSPSolution(list);
-            }
+            PopulationSize = 2000;
+            TournamentSize = 10;
+            MutationRate = 0.015;
+            GreedyVariance = 5;
+            GreedyPreferenceRate = 0.90;
+            MaxGenerations = 100;
         }
 
-        private class Population
+        private ProblemAndSolver parent;
+
+        private Random random = new Random();
+
+        public string[] Solve(ProblemAndSolver parent)
         {
-            private SortedDictionary<double, List<Sequence>> pop;
-            
-            public int Size
-            {
-                get
-                {
-                    int size = 0;
-                    foreach (var d in pop)
-                    {
-                        size += d.Value.Count;
-                    }
-                    return size;
-                }
-            }
-
-            public Population()
-            {
-                pop = new SortedDictionary<double, List<Sequence>>();
-            }
-
-            public void Add(Sequence s)
-            {
-                if (!pop.ContainsKey(s.Score))
-                {
-                    pop[s.Score] = new List<Sequence>();
-                }
-                pop[s.Score].Add(s);
-            }
-
-            public Sequence Best
-            {
-                get
-                {
-                    if (pop.Count == 0)
-                    {
-                        return null;
-                    }
-                    return pop.First().Value.First();
-                }
-            }
-
-            public List<Sequence> SelectParents()
-            {
-                List<Sequence> parents = new List<Sequence>();
-                Random random = GeneticAlgorithm.random;
-                int size = Size;
-                List<List<Sequence>> values = Enumerable.ToList(pop.Values);
-                for (int i = 0; i < size / 2; i++)
-                {
-                    var candidates = values[random.Next(values.Count)];
-                    var mom = candidates[random.Next(candidates.Count)];
-                    parents.Add(mom);
-                }
-                return parents;
-            }
-
-            public void ForEach(Action<Sequence> doit)
-            {
-                foreach (var entry in pop)
-                {
-                    foreach (var seq in entry.Value)
-                    {
-                        doit(seq);
-                    }
-                }
-            }
-
-            public void TrimDuplicates()
-            {
-                foreach (var entry in pop)
-                {
-                    if (entry.Value.Count > 1)
-                    {
-                        var best = entry.Value.First();
-                        entry.Value.Clear();
-                        entry.Value.Add(best);
-                    }
-                }
-            }
-
-            public void TrimWorst()
-            {
-                List<List<Sequence>> values = Enumerable.ToList(pop.Values);
-                pop.Clear();
-                for (int i = 0; i < (3 * values.Count) / 4; i++)
-                {
-                    pop[values[i].First().Score] = values[i];
-                }
-            }
-        }
-
-        public static string[] Solve(ProblemAndSolver parent)
-        {
-            GeneticAlgorithm.parent = parent;
+            this.parent = parent;
             string[] results = new string[3];
+            Dictionary<string, double> improvementRate = new Dictionary<string, double>();
 
             Population pop = InitPopulation();
             Sequence imdabest = pop.Best;
             Stopwatch timer = new Stopwatch();
-
+            improvementRate[timer.Elapsed.ToString()] = imdabest.Score;
             timer.Start();
             int iterationsSanChangement = 0;
             int count = 0;
             int generations = 0;
             List<Sequence> bestones = new List<Sequence>();
             bestones.Add(imdabest);
-            while ((iterationsSanChangement < 100 && timer.Elapsed.TotalSeconds < 60)||
+
+            while ((iterationsSanChangement < MaxGenerations && timer.Elapsed.TotalSeconds < 90) ||
                 pop.Size < 2)
             {
 
                 generations++;
-                while (pop.Size < 50)
-                {
-                    CrossPopulation(pop);
-                }
+                CrossPopulation(ref pop);
                 MutatePopulation(pop);
                 PrunePopulation(pop);
                 if (pop.Best.Score < imdabest.Score)
@@ -238,6 +62,7 @@ namespace TSP
                     iterationsSanChangement = 0;
                     count++;
                     imdabest = pop.Best;
+                    improvementRate[timer.Elapsed.ToString()] = imdabest.Score;
                     bestones.Add(imdabest);
                 }
                 else
@@ -249,84 +74,112 @@ namespace TSP
 
             parent.BSSF = imdabest.ToRoute();
 
-            Console.WriteLine("Generations:" + generations.ToString());
+            Console.WriteLine();
 
             results[ProblemAndSolver.COST] = imdabest.Score.ToString();    // load results into array here, replacing these dummy values
             results[ProblemAndSolver.TIME] = timer.Elapsed.ToString();
             results[ProblemAndSolver.COUNT] = count.ToString(); //*** should this be 1 or the number of greedy solutions that we find???
+            StringBuilder bob = new StringBuilder();
+            bob.Append("Time,Best Cost\r\n");
+            foreach (var entry in improvementRate)
+            {
+                bob.Append(entry.Key);
+                bob.Append(",");
+                bob.Append(entry.Value);
+                bob.Append("\r\n");
+            }
+            bob.Append("Best," + imdabest.Score.ToString() + "\r\n");
+            bob.Append("Problem Size," + parent.GetCities().Length + "\r\n");
+            bob.Append("Seed," + parent.Seed + "\r\n");
+            bob.Append("Generations," + generations.ToString() + "\r\n");
+            bob.Append("Total Time," + timer.Elapsed.ToString());
+            bob.Append("\r\n");
 
+            System.IO.File.AppendAllText(@"C:\Users\Matt\Desktop\tsp_results.csv", bob.ToString());
             return results;
         }
 
-        private static Population InitPopulation()
+        private Population InitPopulation()
         {
-            int pop_size = 50;
             Population pop = new Population();
-            int i = 0, swap = -1, temp = -1;
-            Random rnd = random;
-            City[] Cities = parent.GetCities();
 
-            for (int j = 0; j < pop_size; j++)
+            pop.Add(new Sequence(parent.BSSF));
+
+            City[] cities = parent.GetCities();
+            City start = cities[0];
+            GreedyMaker maker = new GreedyMaker(cities);
+            List<City> greedy = new List<City>();
+            City source = start;
+            greedy.Add(source);
+            while (greedy.Count < cities.Length)
             {
-                int[] perm = new int[Cities.Length];
-                Sequence s = new Sequence(perm);
-                do
+                var destinations = maker[source];
+                foreach (var c in destinations)
                 {
-                    for (i = 0; i < perm.Length; i++)                                 // create a random permutation template
-                        perm[i] = i;
-                    for (i = 0; i < perm.Length; i++)
+                    City gcity = c.Destination;
+                    if (!greedy.Contains(gcity))
                     {
-                        swap = i;
-                        while (swap == i)
-                            swap = rnd.Next(0, Cities.Length);
-                        temp = perm[i];
-                        perm[i] = perm[swap];
-                        perm[swap] = temp;
+                        greedy.Add(gcity);
+                        source = gcity;
+                        break;
                     }
-                    s = new Sequence(perm);
-                } while (s.Score == double.PositiveInfinity);
-                pop.Add(s);
+                }
+            }
+            pop.Add(new Sequence(greedy));
+
+
+            while (pop.Size < PopulationSize)
+            {
+                City city = start;
+                List<City> gene = new List<City>();
+                while (gene.Count < cities.Length)
+                {
+                    if (!gene.Contains(city)) { gene.Add(city); }
+                    city = maker[city][(random.Next() <= GreedyPreferenceRate ?
+                        random.Next(GreedyVariance) :
+                        random.Next(maker[city].Count))].Destination;
+                }
+                pop.Add(new Sequence(gene));
             }
 
             return pop;
         }
 
-        private static void CrossPopulation(Population pop)
+        private void CrossPopulation(ref Population pop)
         {
-            City[] cities = parent.GetCities();
-            var parents = pop.SelectParents();
-
-            while (parents.Count >= 2)
+            Population children = new Population();
+            children.Add(pop.Best);
+            while (children.Size < PopulationSize)
             {
 
-                var mom = parents[random.Next(parents.Count)];
-                var dad = parents[random.Next(parents.Count)];
+                var mom = TournamentParents(pop);
+                var dad = TournamentParents(pop);
 
                 var chillen = Cross(mom, dad);
-
-                if (mom.Score < dad.Score)
-                {
-                    parents.Remove(mom);
-                }
-                else
-                {
-                    parents.Remove(dad);
-                }
-
-                pop.Add(chillen.Item1);
-                pop.Add(chillen.Item2);
-                
+                children.Add(chillen.Item1);
+                children.Add(chillen.Item2);
             }
+            pop = children;
         }
 
-        private static Tuple<Sequence, Sequence> Cross(Sequence mom, Sequence dad)
+        private Sequence TournamentParents(Population pop)
+        {
+            Population tournament = new Population();
+            for (int i = 0; i < TournamentSize; i++)
+            {
+                tournament.Add(pop.GetCandidate());
+            }
+            return tournament.Best;
+        }
+
+        private Tuple<Sequence, Sequence> Cross(Sequence mom, Sequence dad)
         {
             int swapIndex = random.Next(mom.Length);
             var child1 = new Sequence(mom);
             var child2 = new Sequence(dad);
 
-            int val1 = child1[swapIndex];
-            int val2 = child2[swapIndex];
+            var val1 = child1[swapIndex];
+            var val2 = child2[swapIndex];
 
             int index1 = child1.IndexOf(val2);
             int index2 = child2.IndexOf(val1);
@@ -334,35 +187,37 @@ namespace TSP
             child1[index1] = val1;
             child2[index2] = val2;
 
-            int temp = child1[swapIndex];
+            child1.Rescore();
+            child2.Rescore();
+
+            var temp = child1[swapIndex];
             child1[swapIndex] = child2[swapIndex];
             child2[swapIndex] = temp;
 
             return Tuple.Create(child1, child2);
         }
-        
-        private static double mutation_likelihood = 0.30;
 
-        private static void MutatePopulation(Population pop)
+        private void MutatePopulation(Population pop)
         {
             pop.ForEach((seq) => {
                 double likeliness = random.NextDouble();
-                if (likeliness <= mutation_likelihood)
+                if (likeliness <= MutationRate)
                 {
                     int a = random.Next(seq.Length);
                     int b = random.Next(seq.Length);
-                    int t = seq[a];
+                    var t = seq[a];
                     seq[a] = seq[b];
                     seq[b] = t;
                     Console.WriteLine();
                 }
+                seq.Rescore();
             });
         }
 
-        private static void PrunePopulation(Population pop)
+        private void PrunePopulation(Population pop)
         {
             pop.TrimDuplicates();
-            pop.TrimWorst();
+            //pop.TrimWorst();
             Console.WriteLine();
         }
 
